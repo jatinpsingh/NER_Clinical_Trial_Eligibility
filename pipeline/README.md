@@ -40,6 +40,33 @@ Splits are 80/10/10 train/val/test at the **trial (NCT ID) level** (fixed
 seed=42), so inclusion/exclusion sentences from the same trial never land in
 different splits.
 
+## File Guide
+
+### `pipeline/src/chia_pipeline/` (the package)
+
+| File | Purpose |
+|---|---|
+| `__init__.py` | Empty; marks `chia_pipeline` as an importable package. |
+| `download.py` | Downloads and unzips the raw CHIA corpus from figshare into `data/raw/chia_without_scope/`. |
+| `brat.py` | Parses `.ann` BRAT files into `Fragment` (char-offset entity mention) objects, splitting discontinuous mentions and dropping non-kept types. |
+| `constants.py` | Defines kept entity types, the derived BIO label list, and train/val/test split fractions/seed. |
+| `tokenizer.py` | Lightweight regex tokenizer producing word tokens with character offsets. |
+| `align.py` | Resolves overlapping entity fragments (keep-longest) and converts between token-level BIO tags and char-offset entity spans. |
+| `build_dataset.py` | Main pipeline: reads raw docs, aligns entities to sentences/tokens, splits by trial ID, writes `data/processed/*.jsonl` + `label_list.json`. |
+| `stats.py` | Prints per-split entity-type and document/sentence counts from the processed data. |
+| `eda.py` | Computes exploratory stats (sentence length, entity density, OOV rate) per split. |
+| `eval_utils.py` | Shared entity-level precision/recall/F1 scorer used by every baseline/model. |
+| `baselines.py` | Trains/evaluates the non-neural all-O and lookup baselines against the processed data. |
+
+### `pipeline/tests/`
+
+| File | Purpose |
+|---|---|
+| `test_brat.py` | Checks `.ann` T-line parsing produces correct `Fragment`s. |
+| `test_align.py` | Checks overlap resolution and BIO↔span conversion round-trip correctly. |
+| `test_eval_utils.py` | Checks `score_corpus` gives correct precision/recall/F1 on known gold/pred pairs. |
+
+
 ## Design notes / known limitations
 
 - **Data source**: `chia_without_scope`, not `chia_with_scope`. The with-scope
