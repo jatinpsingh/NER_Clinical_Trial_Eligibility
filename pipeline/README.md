@@ -20,6 +20,7 @@ python -m chia_pipeline.build_dataset    # -> ../data/processed/{train,val,test}
 python -m chia_pipeline.stats            # entity counts per split, for sanity-checking / the paper
 python -m chia_pipeline.eda              # sentence-length/entity-density/OOV stats
 python -m chia_pipeline.baselines        # all-O and lookup-baseline entity-level P/R/F1
+python -m chia_pipeline.evaluate --gold ../data/processed/test_spans.jsonl --pred /tmp/preds.jsonl --pred-format spans
 python -m pytest                         # unit tests for the parser/aligner/scorer
 ```
 
@@ -55,7 +56,8 @@ different splits.
 | `build_dataset.py` | Main pipeline: reads raw docs, aligns entities to sentences/tokens, splits by trial ID, writes `data/processed/*.jsonl` + `label_list.json`. |
 | `stats.py` | Prints per-split entity-type and document/sentence counts from the processed data. |
 | `eda.py` | Computes exploratory stats (sentence length, entity density, OOV rate) per split. |
-| `eval_utils.py` | Shared entity-level precision/recall/F1 scorer used by every baseline/model. |
+| `eval_utils.py` | Shared entity-level precision/recall/F1 scorer used by every baseline/model, with exact and relaxed matching variants. |
+| `evaluate.py` | Shared CLI harness for scoring spans- or BIO-format predictions against the processed gold set. |
 | `baselines.py` | Trains/evaluates the non-neural all-O and lookup baselines against the processed data. |
 
 ### `pipeline/tests/`
@@ -64,7 +66,8 @@ different splits.
 |---|---|
 | `test_brat.py` | Checks `.ann` T-line parsing produces correct `Fragment`s. |
 | `test_align.py` | Checks overlap resolution and BIO↔span conversion round-trip correctly. |
-| `test_eval_utils.py` | Checks `score_corpus` gives correct precision/recall/F1 on known gold/pred pairs. |
+| `test_eval_utils.py` | Checks exact and relaxed scorers give correct precision/recall/F1 on known gold/pred pairs. |
+| `test_evaluate.py` | Checks the shared evaluation CLI loads spans/BIO predictions, reports missing coverage, and aligns wordpiece tags safely. |
 
 
 ## Design notes / known limitations
@@ -85,6 +88,11 @@ different splits.
   marking annotator data-quality issues, not real entities — those spans are
   dropped. This uses an allowlist, so any other stray tag in the raw data is
   dropped too.
+- **Scoring convention**: the shared scorer now reports both exact and relaxed
+  entity-level F1. Exact matching requires identical `(type, start, end)` and
+  is the strict baseline. Relaxed matching credits a prediction when it has
+  the same type and overlaps the gold span at all, which is the convention
+  used for direct comparison to Li et al. (2022) CHIA results.
 - **Discontinuous entities** (~7% of mentions, e.g. "major impairment of
   renal *[or hepatic]* function" tagged as one entity with a gap) are split
   into independent same-type fragments, since flat BIO can't represent gaps
