@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import requests
 
-ROOT = Path("/home/jatin/nlp/project")
+ROOT = Path("/home/sjatinpal2/NER_Clinical_Trial_Eligibility")
 SUPERSET = ROOT / "experiments" / "example_superset_seed42.json"
 VAL_SPANS = ROOT / "data" / "processed_baseline" / "val_spans.jsonl"
 OUT_DIR = ROOT / "experiments" / "outputs"
@@ -30,11 +30,13 @@ OUT_DIR = ROOT / "experiments" / "outputs"
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_URL = OLLAMA_HOST + "/api/chat"
 
-ENTITY_TYPES = [
+DOMAIN_TYPES = [
     "Person", "Condition", "Drug", "Observation", "Measurement", "Procedure",
-    "Device", "Visit", "Negation", "Qualifier", "Temporal", "Value",
-    "Multiplier", "Reference_point", "Mood",
+    "Device", "Visit",
 ]
+FIELD_TYPES = ["Temporal", "Value"]
+CONSTRUCT_TYPES = ["Negation", "Qualifier", "Multiplier", "Reference_point", "Mood"]
+ENTITY_TYPES = DOMAIN_TYPES + FIELD_TYPES + CONSTRUCT_TYPES
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -54,32 +56,54 @@ RESPONSE_SCHEMA = {
     "required": ["entities"],
 }
 
-# One-line definition per entity class. Definitions (not just the type list) were
-# the single biggest lever on the frontier arm (+0.126 strict F1 at 0-shot in
-# notebooks/llm.ipynb), so we bake them into the system prompt. Keyed and ordered
-# to match ENTITY_TYPES exactly — no `Line` (not in our 15-type schema).
 GUIDELINES = {
-    "Person": "demographic information describing a person: age, gender, race, ethnicity, etc.",
-    "Condition": "a disease or medical condition stated as a diagnosis, sign, or symptom, observed by a provider or reported by the patient",
-    "Drug": "a biochemical substance administered to exert a physiological effect; includes prescription and OTC medicines, vaccines, biologics",
-    "Observation": "a clinical fact about a person not covered by other domains (e.g. social/lifestyle facts, medical history, family history)",
-    "Measurement": "a structured value (numerical or categorical) obtained through standardized examination or testing (e.g. lab tests, vital signs)",
-    "Procedure": "an activity or process ordered or carried out by a provider for a diagnostic or therapeutic purpose",
-    "Device": "a physical object or instrument used for diagnostic or therapeutic purposes (e.g. pacemakers, stents, syringes, sutures)",
-    "Visit": "the location or setting where a person receives medical services (e.g. outpatient, inpatient, emergency room, long-term care)",
-    "Negation": "a cue that provokes a Boolean negation on its parent entity (e.g. 'no', 'not', 'without')",
-    "Qualifier": "text that further constrains its parent, e.g. location ('facial' trauma), severity ('severe' impairment), or type ('familial' diabetes)",
-    "Temporal": "a time expression, duration, or frequency constraining an entity",
-    "Value": "a numeric value or range attached to a Measurement (e.g. '<8 g/dL')",
-    "Multiplier": "specifies dosage of a Drug or repetition of an entity (e.g. 'at least two of...')",
-    "Reference_point": "a concept whose timestamp anchors a parent Temporal; e.g. in 'within two weeks of a blood transfusion', 'blood transfusion'",
-    "Mood": "text that transforms its parent into a non-literal statement; e.g. in 'eligible for surgery', 'eligible for'",
+    "Person": "demographic information used to describe a Person, including age, gender, race, ethnicity, etc.",
+    "Condition": "the presence of a disease or medical condition stated as a diagnosis, a sign, or a symptom, which is either observed by a Provider or reported by the patient.",
+    "Drug": "a biochemical substance formulated in such a way that when administered to a Person it will exert a certain physiological effect; includes prescription and over-the-counter medicines, vaccines, and large-molecule biologic therapies.",
+    "Observation": "clinical facts about a Person obtained in the context of examination, questioning or a procedure; includes any data that cannot be represented by any other domains, such as social and lifestyle facts, medical history, family history, etc.",
+    "Measurement": "structured values (numerical or categorical) obtained through systematic and standardized examination or testing of a Person or Person's sample.",
+    "Procedure": "activities or processes ordered by, or carried out by, a healthcare provider on the patient to have a diagnostic or therapeutic purpose.",
+    "Device": "exposure to a foreign physical object or instrument which is used for diagnostic or therapeutic purposes through a mechanism beyond chemical action; includes implantable objects (e.g. pacemakers, stents, artificial joints), medical equipment and supplies (e.g. bandages, crutches, syringes), other instruments used in medical procedures (e.g. sutures, defibrillators) and material used in clinical care (e.g. adhesives, body material, dental material, surgical material).",
+    "Visit": "location or setting in which a Person is receiving medical services from one or more providers, including outpatient care, inpatient confinement, emergency room, and long-term care.",
+    "Temporal": "represents a point in the line of time. Most often, a Temporal overlaps a Reference_point entity, and is linked to it via a has_index-type relationship (see definition of Reference_point below).",
+    "Value": "represents a structured value, either as a number (e.g. blood pressure < 140/90 mmHg) or as a concept (e.g. elevated serum creatinine). When specifying a number value, the only components accepted inside its free text are (extending the above example): logical operator (<), numeral (140/90), unit of measure (mmHg).",
+    "Negation": "provokes a Boolean negation on its parent entity. If the truth value of the parent evaluates to false, it then becomes true, and vice-versa.",
+    "Qualifier": "subsets the meaning of its parent by imposing a further constraint. The value of a Qualifier oftentimes serves as a supplement to the value of its parent, that is, it may be the case that the free text contained by a Qualifier can be concatenated with the free text contained by its parent (e.g. a Condition) to form one string that can then be linked to a single code. For example, if the free text reads \"familial diabetes insipidus\", we might have one Condition \"diabetes insipidus\" linked to one Qualifier \"familial.\" Another common case is for Qualifiers to express the anatomic location of a Condition (e.g. facial trauma) or the severity of a Condition (e.g. severe renal impairment).",
+    "Multiplier": "specifies either dosage of a Drug entity, or repetition type of entity (e.g. \"at least two of...\").",
+    "Reference_point": "Always comes downstream (usually directly) from a parent Temporal, and specifies a concept whose timestamp anchors that Temporal. For example, in \"within two weeks of a blood transfusion\" this entire text string is one Temporal, and it contains (overlaps) the Reference_point \"blood transfusion.\"",
+    "Mood": "transforms the meaning of its parent into a different kind of statement that is not about the literal presence of the parent. For example, in \"eligible for surgery\" the Mood \"eligible for\" denotes that satisfying this criterion does not require the presence of records of the surgery, but rather the presence of concept(s) associated to that surgery – in this case, the patient's eligibility for it.",
 }
+
+GROUPS = [
+    ("Domain",
+     "Domain entities represent semantic categories for a given concept.",
+     DOMAIN_TYPES),
+    ("Fields",
+     "Field entities represent properties of the Domain concepts. They may provide the "
+     "value or range of values that must be present in a given lab test or timeframe for a "
+     "previous diagnosis, and always appear downstream (even if indirectly) from at least "
+     "one Domain entity.",
+     FIELD_TYPES),
+    ("Constructs",
+     "Construct entities serve syntactic purposes. Like Fields, they require a relationship "
+     "to another entity to form any meaning. With the exception of Scope (excluded from this "
+     "schema), all Construct entities are necessarily children of the entity whose meaning "
+     "they complement or modify.",
+     CONSTRUCT_TYPES),
+]
+
+def _guidelines_block() -> str:
+    blocks = []
+    for name, intro, types in GROUPS:
+        lines = [f"{name}: {intro}"] + [f"  - {t}: {GUIDELINES[t]}" for t in types]
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 SYSTEM = (
     "You are a clinical NLP annotator. Extract named entities from a single clinical "
-    "trial eligibility criterion. Use ONLY these entity classes (definitions follow):\n"
-    + "\n".join(f"- {t}: {GUIDELINES[t]}" for t in ENTITY_TYPES) + "\n"
+    "trial eligibility criterion. Use ONLY the entity classes below, organized into three "
+    "groups (Domain, Fields, Constructs):\n\n"
+    + _guidelines_block() + "\n\n"
     "Each entity's text must be copied verbatim from the criterion — do not paraphrase, "
     "normalize, expand abbreviations, or invent text. Return every entity you find. "
     "If none, return an empty list."
