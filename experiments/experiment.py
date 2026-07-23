@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import requests
 
-ROOT = Path("/home/jatin/nlp/project")
+ROOT = Path("/home/sjatinpal2/NER_Clinical_Trial_Eligibility")
 SUPERSET = ROOT / "experiments" / "example_superset_seed42.json"
 VAL_SPANS = ROOT / "data" / "processed_baseline" / "val_spans.jsonl"
 OUT_DIR = ROOT / "experiments" / "outputs"

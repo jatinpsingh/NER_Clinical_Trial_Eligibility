@@ -23,7 +23,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/jatin/nlp/project")
+ROOT = Path("/home/sjatinpal2/NER_Clinical_Trial_Eligibility")
 sys.path.insert(0, str(ROOT / "pipeline" / "src"))
 from chia_pipeline.eval_utils import score_corpus_both  # noqa: E402
 

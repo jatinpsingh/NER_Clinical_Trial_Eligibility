@@ -1,0 +1,1 @@
+model = qwen3.5:0.8b | n_examples = 0 | m_samples = 1240 | temp = 0.0 | num_ctx = 65536 | workers = 8 | outputs = /home/sjatinpal2/NER_Clinical_Trial_Eligibility/experiments/outputs/predictions_qwen3-5-0-8b_n0_mfull_seed42.jsonl
