@@ -33,12 +33,41 @@ GOLD_PATH = ROOT / "data" / "processed_baseline" / "val_spans.jsonl"
 OUT_DIR = ROOT / "slm" / "outputs"
 
 
+ENTITY_TYPES = {
+    "Person", "Condition", "Drug", "Observation", "Measurement", "Procedure",
+    "Device", "Visit", "Negation", "Qualifier", "Temporal", "Value",
+    "Multiplier", "Reference_point", "Mood",
+}
+
+
 def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
 
 
+def dropped_as_fp(dropped: list[dict]) -> list[dict]:
+    """Turn each unplaceable model output into a guaranteed false positive.
+
+    Every dropped item (hallucinated text, bad/empty type, non-object) is something
+    the model asserted that is not a valid gold entity, so it must count against
+    precision -- otherwise precision is computed only over placeable predictions and
+    silently hides hallucination (the headline LLM failure mode). Each sentinel gets
+    all-negative, unique, disjoint offsets: gold spans are always >= 0, so a sentinel
+    can never equal a gold key (exact) nor overlap a gold span (relaxed), making it an
+    FP under both conventions. It only raises the precision denominator -- TP, recall,
+    and gold counts are untouched. Types outside the schema collect under one
+    "_invalid" per-type row instead of scattering junk rows; the micro overall counts
+    them regardless of type."""
+    spans = []
+    for i, d in enumerate(dropped):
+        start = -2 * (i + 1)
+        etype = d.get("type") if d.get("type") in ENTITY_TYPES else "_invalid"
+        spans.append({"type": etype, "start": start, "end": start + 1})
+    return spans
+
+
 def score_file(pred_path: Path, gold_by_id: dict[str, dict]) -> dict:
-    pred_by_id = {r["id"]: r.get("pred", []) for r in load_jsonl(pred_path)}
+    pred_by_id = {r["id"]: r.get("pred", []) + dropped_as_fp(r.get("dropped", []))
+                  for r in load_jsonl(pred_path)}
     missing = sorted(set(gold_by_id) - set(pred_by_id))
 
     gold_sentences, pred_sentences = [], []

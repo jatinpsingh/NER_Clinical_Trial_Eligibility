@@ -3,4 +3,5 @@
 CLAUDE.md
 .vscode
 *pycache*
-ner_final.ipynb
+ner_final_edit.ipynb
+experiment_openai.py
