@@ -18,8 +18,9 @@ import json, glob, os, re
 from collections import Counter
 from chia_pipeline.eval_utils import score_corpus_both
 
-OUT = "/content/NER_repo/slm/outputs"
-TEST_GOLD = "/content/NER_repo/data/processed_baseline/test_spans.jsonl"
+ROOT = os.environ.get("CHIA_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.path.join(ROOT, "generative_models", "test_output")
+TEST_GOLD = os.path.join(ROOT, "data", "processed_baseline", "test_spans.jsonl")
 ENTITY_TYPES = ["Person","Condition","Drug","Observation","Measurement","Procedure",
     "Device","Visit","Temporal","Value","Negation","Qualifier","Multiplier",
     "Reference_point","Mood"]
@@ -35,20 +36,22 @@ def dropped_as_fp(dr):
     return out
 
 def test_arms(n):
-    """Every arm with a test run at shot count n. SLM arms use <model> names;
-    GPT arms are labelled gpt-<tier>. Auto-includes SLM arms once tested."""
-    arms={}
-    for f in glob.glob(f"{OUT}/*/predictions_*_n{n}_mfull_seed42.jsonl"):
-        base=os.path.basename(f)
-        if "_test_" in base or "gpt-5-6" not in f:
-            if "gpt-5-6" in f:
-                m=re.search(r"predictions_gpt-5-6-(\w+)_test", base)
-                if m: arms[f"gpt-{m.group(1)}"]=f
-            else:
-                arms[os.path.basename(os.path.dirname(f))]=f
-    for f in glob.glob(f"{OUT}/gpt-5-6-sol/*_test_n{n}_mfull_seed42.jsonl"):
-        m=re.search(r"predictions_gpt-5-6-(\w+)_test", os.path.basename(f))
-        if m: arms[f"gpt-{m.group(1)}"]=f
+    """Every arm with a test run at shot count n. Looks both directly in
+    test_output/ and in test_output/<model>/, so either layout works."""
+    arms = {}
+    for pattern in (f"{OUT}/predictions_*_n{n}_mfull_seed42.jsonl",
+                    f"{OUT}/*/predictions_*_n{n}_mfull_seed42.jsonl"):
+        for f in glob.glob(pattern):
+            base = os.path.basename(f)
+            if "_test_" not in base:
+                continue
+            m = re.search(r"predictions_gpt-5-6-(\w+)_test", base)
+            if m:
+                arms[f"gpt-{m.group(1)}"] = f
+                continue
+            m = re.search(r"predictions_(.+?)_test_", base)
+            if m:
+                arms[m.group(1)] = f
     return arms
 
 def _load(path, gold):
