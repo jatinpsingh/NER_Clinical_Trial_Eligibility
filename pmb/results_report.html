@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubMedBERT/BiomedBERT Fine-Tuning — Methodology &amp; Results</title>
+<style>
+  :root {
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* blue   */
+    --series-2:       #1baf7a; /* aqua   */
+    --series-3:       #eda100; /* yellow */
+    --series-4:       #008300; /* green  */
+    --series-5:       #4a3aa7; /* violet */
+    --series-6:       #e34948; /* red    */
+    --good:           #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #199e70;
+      --series-3:       #c98500;
+      --series-4:       #008300;
+      --series-5:       #9085e9;
+      --series-6:       #e66767;
+      --good:           #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 64px 32px 100px; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px;
+    font-weight: 700; color: var(--series-1); margin-bottom: 10px;
+  }
+  h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; margin: 0 0 14px; }
+  h2 {
+    font-size: 22px; margin: 64px 0 8px; padding-top: 24px;
+    border-top: 1px solid var(--gridline);
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 40px; }
+  h3 { font-size: 15px; color: var(--text-secondary); margin: 28px 0 12px; font-weight: 700; }
+  p.lede { color: var(--text-secondary); font-size: 17px; max-width: 70ch; margin: 0 0 8px; }
+  p { color: var(--text-secondary); font-size: 15px; line-height: 1.65; max-width: 74ch; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--gridline); padding: 1px 5px; border-radius: 4px; font-size: 0.9em;
+  }
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 800px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 22px;
+  }
+  .card h4 { margin: 0 0 4px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+  .card .big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .cap { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+  table.spec {
+    width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0 24px;
+  }
+  table.spec td, table.spec th {
+    text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--gridline);
+  }
+  table.spec th { color: var(--text-muted); font-weight: 600; width: 34%; }
+  .barchart { display: flex; flex-direction: column; gap: 9px; }
+  .bar-row { display: grid; grid-template-columns: 140px 1fr 58px; align-items: center; gap: 10px; }
+  .bar-row .label { font-size: 13px; color: var(--text-secondary); text-align: right; }
+  .bar-track { position: relative; height: 18px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+  .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 3px; cursor: pointer; }
+  .bar-fill:hover { filter: brightness(1.12); }
+  .bar-row .value { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+  .tooltip {
+    position: fixed; pointer-events: none; background: var(--text-primary); color: var(--surface-1);
+    font-size: 12px; padding: 5px 9px; border-radius: 6px; z-index: 999; opacity: 0;
+    transform: translate(-50%, -130%); transition: opacity 0.08s ease; white-space: nowrap;
+  }
+  .tooltip.show { opacity: 1; }
+  .table-toggle {
+    background: none; border: 1px solid var(--border); color: var(--text-secondary);
+    font-size: 12px; padding: 5px 12px; border-radius: 20px; cursor: pointer; margin-top: 10px;
+  }
+  .table-toggle:hover { border-color: var(--series-1); color: var(--series-1); }
+  table.data-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; display: none; }
+  table.data-table.show { display: table; }
+  table.data-table th, table.data-table td { text-align: left; padding: 5px 9px; border-bottom: 1px solid var(--gridline); }
+  table.data-table th { color: var(--text-muted); font-weight: 600; }
+  .callout {
+    background: rgba(42,120,214,0.07); border: 1px dashed rgba(42,120,214,0.35);
+    border-radius: 12px; padding: 14px 18px; font-size: 14px; color: var(--text-secondary); margin: 16px 0;
+  }
+  .callout b { color: var(--text-primary); }
+  .callout .lbl {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--series-1); font-weight: 700; display: block; margin-bottom: 6px;
+  }
+  ul.plain { margin: 8px 0; padding-left: 18px; color: var(--text-secondary); font-size: 14.5px; line-height: 1.75; }
+  ul.plain li b { color: var(--text-primary); }
+  .toc { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; }
+  .toc a { font-size: 13px; color: var(--series-1); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px; background: rgba(12,163,12,0.12); color: var(--good);
+  }
+  .footnote { font-size: 12.5px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="tooltip" id="tooltip"></div>
+<div class="wrap">
+
+  <div class="eyebrow">CHIA Clinical Trial NER — PubMedBERT/BiomedBERT track</div>
+  <h1>Fine-tuning BiomedBERT for eligibility-criteria NER: methodology &amp; results</h1>
+  <p class="lede">
+    Full fine-tuning run of <code>microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext</code>
+    on the team's shared, fixed CHIA split, matching Li et al. 2022's hyperparameters so results are
+    directly comparable to that paper's published P/R/F1 on the Chia corpus.
+  </p>
+  <span class="status-pill">&#9679; Completed end-to-end, GCP L4 GPU, ~13 min training</span>
+
+  <div class="toc">
+    <a href="#overview">Overview</a>
+    <a href="#methodology">Methodology</a>
+    <a href="#training">Training dynamics</a>
+    <a href="#results">Results</a>
+    <a href="#discussion">Discussion</a>
+    <a href="#infra">Infrastructure</a>
+    <a href="#limitations">Limitations</a>
+  </div>
+
+  <h2 id="overview">Overview</h2>
+  <div class="grid grid-4" id="overview-tiles"></div>
+
+  <h2 id="methodology">Methodology</h2>
+  <p>
+    Fine-tuning followed Li et al. 2022 (the comparative NER study this project's proposal cites as its
+    primary baseline) so the result here is directly measurable against a published reference point,
+    not just an internal number.
+  </p>
+  <h3>Model</h3>
+  <table class="spec">
+    <tr><th>Checkpoint</th><td><code>microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext</code> (the renamed PubMedBERT-base)</td></tr>
+    <tr><th>Architecture</th><td>BERT-base: 12 transformer layers, 768 hidden size, 12 attention heads, ~110M parameters</td></tr>
+    <tr><th>Task head</th><td>Freshly initialized linear layer, 768&nbsp;&rarr;&nbsp;31 labels, attached on top of the pretrained encoder (the original masked-language-model head is discarded)</td></tr>
+  </table>
+  <h3>Data</h3>
+  <table class="spec">
+    <tr><th>Source</th><td>Team's shared, fixed split — <code>jatinpsingh/NER_Clinical_Trial_Eligibility</code>, <code>data/processed_baseline/</code></td></tr>
+    <tr><th>Split sizes</th><td>10,006 train / 1,240 val / 1,163 test sentences (one of the shared repo's 10 CV folds, materialized as <code>test_fold=0, val_fold=1</code>)</td></tr>
+    <tr><th>Label set</th><td>31 labels: <code>O</code> + 15 entity types &times; B/I (one fewer type than this project's own local pipeline, which still keeps <code>Line</code>)</td></tr>
+    <tr><th>Re-splitting</th><td>None — consumed exactly as provided, so results are comparable across every track (this one, GPT-4 zero/few-shot)</td></tr>
+  </table>
+  <h3>Hyperparameters (Li et al. 2022, Table 3)</h3>
+  <table class="spec">
+    <tr><th>Learning rate</th><td>5e-5</td></tr>
+    <tr><th>Batch size</th><td>8</td></tr>
+    <tr><th>Epochs</th><td>10</td></tr>
+    <tr><th>Max sequence length</th><td>256 subword tokens</td></tr>
+    <tr><th>Adam epsilon</th><td>1e-8</td></tr>
+    <tr><th>Batch composition</th><td>Plain random shuffling (not length-grouped) — kept identical to a standard/paper setup rather than optimizing for speed</td></tr>
+  </table>
+  <h3>Label alignment</h3>
+  <p>
+    Each word's gold BIO tag is assigned to only its <b>first</b> subword piece; continuation subwords
+    and special tokens (<code>[CLS]</code>/<code>[SEP]</code>/padding) are marked <code>-100</code> and
+    ignored by the loss — the same convention used for decoding predictions back into words at
+    evaluation time.
+  </p>
+  <h3>Evaluation</h3>
+  <p>
+    Two entity-level metrics, matching Li et al. 2022's dual reporting: <b>strict</b>
+    (exact <code>(type, start, end)</code> match) and <b>relaxed</b> (correct type +
+    overlapping span, matched greedily one-to-one per type so no entity is double-counted).
+    Both via <code>chia_pipeline</code>-decoded predictions (BIO tags &rarr; character-offset spans via
+    <code>chia_pipeline.align.bio_to_spans</code>, after asserting the retokenized
+    <code>*_spans.jsonl</code> text matches the stored tokens exactly), scored against the same gold spans.
+  </p>
+  <div class="callout"><span class="lbl">Relaxed scorer — local implementation, pending the shared version</span>
+    The relaxed scorer is owned by a teammate and hadn't landed in the shared
+    <code>chia_pipeline.eval_utils</code> at the time of this run. <code>evaluate.py</code> now ships its
+    own local <code>relaxed_scoring.py</code> implementing the exact contract specified for that
+    teammate's version (verified against the same worked example: type-match + span-overlap, one-to-one
+    greedy matching), used automatically whenever the shared version isn't yet available. Once the
+    teammate's official version lands, <code>evaluate.py</code> will prefer it automatically — these
+    numbers should be spot-checked against it then in case of subtle implementation differences.
+  </div>
+
+  <h2 id="training">Training dynamics</h2>
+  <p>Train loss dropped steadily across all 10 epochs, while validation loss actually climbed after
+  epoch 2 — a textbook overfitting signal on the loss curve. But the entity-level F1 on validation
+  <i>didn't</i> degrade alongside it; it kept slowly improving and peaked at the final epoch. That's
+  why <code>load_best_model_at_end</code> (selecting by validation F1, not loss) kept epoch 10's
+  checkpoint rather than reverting to an earlier one.</p>
+  <div class="card">
+    <h4>Train loss vs. validation loss, per epoch</h4>
+    <div class="legend" id="loss-legend"></div>
+    <div class="barchart" id="chart-loss"></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <h4>Validation entity-F1, per epoch</h4>
+    <div class="barchart" id="chart-epoch-f1"></div>
+  </div>
+
+  <h2 id="results">Results</h2>
+  <h3>Precision / Recall / F1 vs. Li et al. 2022 (Chia corpus)</h3>
+  <table class="spec">
+    <tr><th></th><th>Precision</th><th>Recall</th><th>F1</th></tr>
+    <tr><td colspan="4" style="color:var(--text-muted); font-size:12.5px; padding-top:10px;">Strict (exact span match)</td></tr>
+    <tr><td>This run — val</td><td>0.649</td><td>0.691</td><td>0.669</td></tr>
+    <tr><td>This run — test</td><td>0.639</td><td>0.674</td><td>0.656</td></tr>
+    <tr><td>Li et al. 2022 — Chia</td><td>0.606</td><td>0.639</td><td>0.622</td></tr>
+    <tr><td colspan="4" style="color:var(--text-muted); font-size:12.5px; padding-top:10px;">Relaxed (type + overlap match)</td></tr>
+    <tr><td>This run — val</td><td>0.740</td><td>0.788</td><td>0.763</td></tr>
+    <tr><td>This run — test</td><td>0.750</td><td>0.791</td><td>0.770</td></tr>
+    <tr><td>Li et al. 2022 — Chia</td><td>0.724</td><td>0.765</td><td>0.744</td></tr>
+  </table>
+  <div class="card">
+    <div class="legend" id="compare-legend"></div>
+    <h4 style="margin:4px 0 8px; font-size:13px; color:var(--series-1); font-weight:700;">Strict</h4>
+    <div class="grid grid-3">
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">Precision</h4>
+        <div class="barchart" id="chart-compare-p"></div>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">Recall</h4>
+        <div class="barchart" id="chart-compare-r"></div>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">F1</h4>
+        <div class="barchart" id="chart-compare-f1"></div>
+      </div>
+    </div>
+    <h4 style="margin:24px 0 8px; font-size:13px; color:var(--series-1); font-weight:700;">Relaxed</h4>
+    <div class="grid grid-3">
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">Precision</h4>
+        <div class="barchart" id="chart-compare-relaxed-p"></div>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">Recall</h4>
+        <div class="barchart" id="chart-compare-relaxed-r"></div>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px; font-size:13px; color:var(--text-muted); font-weight:600;">F1</h4>
+        <div class="barchart" id="chart-compare-relaxed-f1"></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout"><span class="lbl">In context</span>
+    Every single number here — strict and relaxed, precision/recall/F1, val and test — lands at or
+    slightly <b>above</b> Li et al. 2022's published PubMedBERT numbers on Chia (strict F1 <b>0.656</b> vs.
+    <b>0.622</b>; relaxed F1 <b>0.770</b> vs. <b>0.744</b>) — a consistent, credible result across both
+    metrics, though not a perfectly apples-to-apples comparison since Li et al. averaged over 10-fold CV
+    and this is one fixed split (see Limitations).
+  </div>
+  <div class="callout"><span class="lbl">On the Wilcoxon rank-sum test — why it's not included</span>
+    A Wilcoxon rank-sum test needs a <b>distribution of scores on each side</b> to compare — Li et al.
+    computed theirs across their 10 CV folds (10 F1 values per model). This run only has <b>one</b> score
+    (one fixed fold, per the "do not re-split" requirement), and the paper only publishes the mean
+    P/R/F1 per corpus, not its 10 raw per-fold scores. A p-value computed from one number vs. one number
+    isn't statistically meaningful, so rather than report a fabricated significance figure, this is left
+    as a direct point comparison above. A genuine test would require either (a) the paper's raw per-fold
+    scores (not published), or (b) re-running this fine-tuning across all 10 of the shared repo's CV
+    folds to build our own 10-value distribution — feasible, but a substantially larger compute job than
+    the single run done here. Happy to do that if a real significance test is needed.
+  </div>
+
+  <h3>Per-entity-type F1 (test), sorted by training-set frequency</h3>
+  <div class="card">
+    <div class="legend" id="pertype-legend"></div>
+    <div class="barchart" id="chart-pertype"></div>
+    <button class="table-toggle" data-target="tbl-pertype">Show full P/R/F1 table (strict + relaxed, val + test)</button>
+    <div style="overflow-x:auto;">
+    <table class="data-table" id="tbl-pertype">
+      <thead>
+        <tr>
+          <th rowspan="2">Type</th>
+          <th colspan="4">Val — strict</th><th colspan="3">Val — relaxed</th>
+          <th colspan="4">Test — strict</th><th colspan="3">Test — relaxed</th>
+        </tr>
+        <tr>
+          <th>P</th><th>R</th><th>F1</th><th>supp.</th>
+          <th>P</th><th>R</th><th>F1</th>
+          <th>P</th><th>R</th><th>F1</th><th>supp.</th>
+          <th>P</th><th>R</th><th>F1</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-pertype-body"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <h2 id="discussion">Discussion</h2>
+  <p><b>Strong types</b> — <code>Person</code> (F1 0.81 test), <code>Drug</code> (0.77), <code>Condition</code>
+  (0.76) all have both high training-set frequency and relatively unambiguous surface forms (drug names,
+  demographic terms, diagnosis phrases), which lines up with the earlier EDA's entity-count chart where
+  these were among the most frequent training labels.</p>
+  <p><b>Weak types</b> — <code>Observation</code> (F1 0.22), <code>Mood</code> (0.24), <code>Reference_point</code>
+  (0.0, only 7 test examples), and <code>Multiplier</code> (0.41) all combine low training support with
+  genuinely ambiguous semantics (e.g. <code>Mood</code> marks hedging language like "may" or "possibly,"
+  which overlaps heavily with ordinary sentence structure). This mirrors Li et al.'s own finding that
+  Chia's per-type F1 ranged from 0.015 to 0.808 in their study — wide per-type variance isn't unique to
+  this run, it's a known property of Chia's schema.</p>
+  <p><code>Reference_point</code> scoring exactly 0.0 on test (7 gold entities) is a support-size problem,
+  not necessarily a modeling failure — with that few examples, a handful of boundary misses can zero out
+  the score entirely.</p>
+
+  <h2 id="infra">Infrastructure</h2>
+  <table class="spec">
+    <tr><th>Where it ran</th><td>Google Cloud, project <code>fine-tuning-pmb</code>, zone <code>us-east1-c</code></td></tr>
+    <tr><th>Instance</th><td><code>g2-standard-4</code> + 1&times; NVIDIA L4 GPU (on-demand) — used instead of the originally-planned T4 because T4 capacity was exhausted in every region tried at the time; L4 is a newer, generally faster GPU, and quota for it was already available</td></tr>
+    <tr><th>Training throughput</th><td>~17 steps/sec steady-state — 12,510 steps (10 epochs) completed in <b>777s (~13 min)</b></td></tr>
+    <tr><th>Estimated cost</th><td>Well under $1 (exact on-demand rate: ~$0.71/hr for this instance type; total VM uptime including setup/eval/artifact transfer was well under an hour)</td></tr>
+    <tr><th>Budget</th><td>$30 dedicated budget alert set on this project (50/90/100% thresholds); actual spend is a small fraction of that</td></tr>
+  </table>
+  <p class="footnote">One real hiccup worth recording: the VM's pre-installed <code>torchaudio</code>
+  (from the base Deep Learning VM image) was incompatible with the freshly pip-installed
+  <code>transformers</code>/<code>torch</code> stack, causing an import crash the first time training
+  was launched (transformers eagerly imports torchaudio for an unrelated audio-loss module). Fixed by
+  removing the conflicting <code>torchaudio</code> install; training then ran clean end-to-end on the
+  second attempt.</p>
+
+  <h2 id="limitations">Limitations</h2>
+  <ul class="plain">
+    <li><b>Single fixed fold, not 10-fold CV</b> — the shared data uses one materialized split
+    (<code>test_fold=0, val_fold=1</code>) of the repo's 10-fold scheme, per the "do not re-split"
+    instruction. No cross-fold variance or Wilcoxon significance testing like Li et al.'s original paper.</li>
+    <li><b>Relaxed scorer is a local implementation, not yet the teammate's official one</b> — built to
+    the exact contract specified for the shared <code>eval_utils.score_corpus_relaxed</code>, verified
+    against a worked example and a different-type edge case, but should be spot-checked against the
+    official version once it lands in the shared repo, in case of subtle implementation differences.</li>
+    <li><b>GPU substitution</b> — ran on an L4 instead of the originally-scoped T4 due to real-time
+    capacity exhaustion, not a deliberate methodology choice. Shouldn't affect the model's actual
+    results (same architecture, same hyperparameters), only the infrastructure cost/speed numbers above.</li>
+  </ul>
+
+</div>
+
+<script>
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const css = getComputedStyle(document.documentElement);
+const cvar = (name) => css.getPropertyValue(name).trim();
+
+const tooltip = $('#tooltip');
+function showTip(e, text) { tooltip.textContent = text; tooltip.style.left = e.clientX+'px'; tooltip.style.top = e.clientY+'px'; tooltip.classList.add('show'); }
+function moveTip(e) { tooltip.style.left = e.clientX+'px'; tooltip.style.top = e.clientY+'px'; }
+function hideTip() { tooltip.classList.remove('show'); }
+
+function barChart(container, items, opts = {}) {
+  const el = typeof container === 'string' ? $(container) : container;
+  const max = opts.max || Math.max(...items.map(d => d.value)) * 1.08;
+  const fmt = opts.fmt || (v => v.toLocaleString());
+  el.innerHTML = '';
+  items.forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    const pct = Math.max((d.value / max) * 100, 0.6);
+    row.innerHTML = `
+      <div class="label">${d.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${d.color || cvar('--series-1')}"></div></div>
+      <div class="value">${fmt(d.value)}</div>
+    `;
+    const fill = row.querySelector('.bar-fill');
+    fill.addEventListener('mouseenter', e => showTip(e, `${d.label}: ${fmt(d.value)}`));
+    fill.addEventListener('mousemove', moveTip);
+    fill.addEventListener('mouseleave', hideTip);
+    el.appendChild(row);
+  });
+}
+function legend(container, items) {
+  const el = typeof container === 'string' ? $(container) : container;
+  el.innerHTML = items.map(d => `<div class="legend-item"><span class="swatch" style="background:${d.color}"></span>${d.label}</div>`).join('');
+}
+
+const C_TRAIN = cvar('--series-1');
+const C_VAL   = cvar('--series-2');
+const C_TEST  = cvar('--series-3');
+const C_MUTED = cvar('--baseline');
+const C_RED   = cvar('--series-6');
+const C_VIOLET = cvar('--series-5');
+
+// ---- overview tiles ----
+$('#overview-tiles').innerHTML = [
+  { h: 'Test F1 (strict)', v: '0.656', c: 'entity-level, exact match' },
+  { h: 'Val F1 (strict)', v: '0.669', c: 'entity-level, exact match' },
+  { h: 'Training time', v: '~13 min', c: '12,510 steps, GCP L4 GPU' },
+  { h: 'Est. cost', v: '< $1', c: 'of $30 dedicated budget' },
+].map(t => `<div class="card"><h4>${t.h}</h4><div class="big">${t.v}</div><div class="cap">${t.c}</div></div>`).join('');
+
+// ---- training dynamics ----
+legend('#loss-legend', [{label:'Train loss', color:C_TRAIN}, {label:'Val loss', color:C_RED}]);
+const epochs = [1,2,3,4,5,6,7,8,9,10];
+const trainLoss = [0.8259,0.5568,0.4794,0.4007,0.3295,0.2495,0.2014,0.1538,0.1204,0.0953];
+const valLoss   = [0.6725,0.6742,0.7664,0.7916,0.8617,0.9120,0.9914,1.086,1.124,1.164];
+const valF1     = [0.6558,0.6602,0.6586,0.6560,0.6610,0.6678,0.6607,0.6622,0.6621,0.6691];
+
+const lossItems = [];
+epochs.forEach((e,i) => {
+  lossItems.push({ label: `Epoch ${e} · train`, value: trainLoss[i], color: C_TRAIN });
+  lossItems.push({ label: `Epoch ${e} · val`, value: valLoss[i], color: C_RED });
+});
+barChart('#chart-loss', lossItems, { max: 1.3, fmt: v => v.toFixed(3) });
+
+barChart('#chart-epoch-f1', epochs.map((e,i) => ({ label: `Epoch ${e}`, value: valF1[i], color: C_VAL })), { max: 0.75, fmt: v => v.toFixed(4) });
+
+// ---- compare charts: precision / recall / F1, each Val vs Test vs Li et al. ----
+legend('#compare-legend', [
+  { label: 'This run (val)', color: C_VAL },
+  { label: 'This run (test)', color: C_TEST },
+  { label: 'Li et al. 2022 — Chia', color: C_VIOLET },
+]);
+const compareSeries = [
+  { label: 'Val', color: C_VAL },
+  { label: 'Test', color: C_TEST },
+  { label: 'Li et al.', color: C_VIOLET },
+];
+barChart('#chart-compare-p', [
+  { label: 'Val', value: 0.649, color: C_VAL },
+  { label: 'Test', value: 0.639, color: C_TEST },
+  { label: 'Li et al.', value: 0.606, color: C_VIOLET },
+], { max: 0.75, fmt: v => v.toFixed(3) });
+barChart('#chart-compare-r', [
+  { label: 'Val', value: 0.691, color: C_VAL },
+  { label: 'Test', value: 0.674, color: C_TEST },
+  { label: 'Li et al.', value: 0.639, color: C_VIOLET },
+], { max: 0.75, fmt: v => v.toFixed(3) });
+barChart('#chart-compare-f1', [
+  { label: 'Val', value: 0.669, color: C_VAL },
+  { label: 'Test', value: 0.656, color: C_TEST },
+  { label: 'Li et al.', value: 0.622, color: C_VIOLET },
+], { max: 0.75, fmt: v => v.toFixed(3) });
+
+barChart('#chart-compare-relaxed-p', [
+  { label: 'Val', value: 0.740, color: C_VAL },
+  { label: 'Test', value: 0.750, color: C_TEST },
+  { label: 'Li et al.', value: 0.724, color: C_VIOLET },
+], { max: 0.85, fmt: v => v.toFixed(3) });
+barChart('#chart-compare-relaxed-r', [
+  { label: 'Val', value: 0.788, color: C_VAL },
+  { label: 'Test', value: 0.791, color: C_TEST },
+  { label: 'Li et al.', value: 0.765, color: C_VIOLET },
+], { max: 0.85, fmt: v => v.toFixed(3) });
+barChart('#chart-compare-relaxed-f1', [
+  { label: 'Val', value: 0.763, color: C_VAL },
+  { label: 'Test', value: 0.770, color: C_TEST },
+  { label: 'Li et al.', value: 0.744, color: C_VIOLET },
+], { max: 0.85, fmt: v => v.toFixed(3) });
+
+// ---- per-type data: [P, R, F1, support] for strict, [P, R, F1] for relaxed ----
+const perType = {
+  Condition:       { valS: [0.7530,0.7883,0.7702,1044], valR: [0.8509,0.8908,0.8704], testS: [0.7439,0.7672,0.7554,1121], testR: [0.8555,0.8822,0.8687] },
+  Drug:            { valS: [0.7672,0.8203,0.7929,434],  valR: [0.8147,0.8710,0.8419], testS: [0.7574,0.7911,0.7739,292],  testR: [0.8525,0.8904,0.8710] },
+  Person:          { valS: [0.8229,0.8136,0.8182,177],  valR: [0.8286,0.8192,0.8239], testS: [0.8440,0.7829,0.8123,152],  testR: [0.8582,0.7961,0.8259] },
+  Value:           { valS: [0.7298,0.7572,0.7433,346],  valR: [0.8552,0.8873,0.8709], testS: [0.7437,0.7708,0.7570,384],  testR: [0.8492,0.8802,0.8645] },
+  Measurement:     { valS: [0.6760,0.7519,0.7119,258],  valR: [0.7840,0.8721,0.8257], testS: [0.7006,0.7097,0.7051,310],  testR: [0.8185,0.8290,0.8237] },
+  Temporal:        { valS: [0.5500,0.6452,0.5938,341],  valR: [0.6500,0.7625,0.7018], testS: [0.5317,0.6031,0.5652,320],  testR: [0.6860,0.7781,0.7291] },
+  Procedure:       { valS: [0.6066,0.6601,0.6322,306],  valR: [0.7087,0.7712,0.7387], testS: [0.5637,0.6525,0.6049,305],  testR: [0.6742,0.7803,0.7234] },
+  Qualifier:       { valS: [0.4520,0.4911,0.4707,393],  valR: [0.5316,0.5776,0.5537], testS: [0.4035,0.4644,0.4318,351],  testR: [0.4827,0.5556,0.5166] },
+  Negation:        { valS: [0.5000,0.6053,0.5476,76],   valR: [0.5978,0.7237,0.6548], testS: [0.6212,0.6029,0.6119,68],   testR: [0.8030,0.7794,0.7910] },
+  Visit:           { valS: [0.6364,0.5385,0.5833,13],   valR: [0.8182,0.6923,0.7500], testS: [0.5294,0.5000,0.5143,18],   testR: [0.6471,0.6111,0.6286] },
+  Device:          { valS: [0.5135,0.4872,0.5000,39],   valR: [0.6216,0.5897,0.6053], testS: [0.5758,0.5938,0.5846,32],   testR: [0.7273,0.7500,0.7385] },
+  Multiplier:      { valS: [0.4658,0.4722,0.4690,72],   valR: [0.6027,0.6111,0.6069], testS: [0.3881,0.4407,0.4127,59],   testR: [0.6119,0.6949,0.6508] },
+  Mood:            { valS: [0.3582,0.3288,0.3429,73],   valR: [0.4478,0.4110,0.4286], testS: [0.2000,0.3023,0.2407,43],   testR: [0.3538,0.5349,0.4259] },
+  Observation:     { valS: [0.2835,0.2727,0.2780,132],  valR: [0.4016,0.3864,0.3938], testS: [0.2472,0.1947,0.2178,113],  testR: [0.3258,0.2566,0.2871] },
+  Reference_point: { valS: [0.0,0.0,0.0,3],             valR: [0.0,0.0,0.0],          testS: [0.0,0.0,0.0,7],             testR: [0.0,0.0,0.0] },
+};
+const sortedTypes = Object.entries(perType).sort((a,b) => b[1].testS[3] - a[1].testS[3]);
+
+legend('#pertype-legend', [{ label: 'Strict F1 (test)', color: C_TEST }, { label: 'Relaxed F1 (test)', color: C_VIOLET }]);
+const pertypeItems = [];
+sortedTypes.forEach(([type, d]) => {
+  pertypeItems.push({ label: `${type} · strict`, value: d.testS[2], color: C_TEST });
+  pertypeItems.push({ label: `${type} · relaxed`, value: d.testR[2], color: C_VIOLET });
+});
+barChart('#chart-pertype', pertypeItems, { max: 0.95, fmt: v => v.toFixed(3) });
+
+$('#tbl-pertype-body').innerHTML = sortedTypes.map(([type, d]) => `
+  <tr><td>${type}</td>
+    <td>${d.valS[0].toFixed(3)}</td><td>${d.valS[1].toFixed(3)}</td><td>${d.valS[2].toFixed(3)}</td><td>${d.valS[3]}</td>
+    <td>${d.valR[0].toFixed(3)}</td><td>${d.valR[1].toFixed(3)}</td><td>${d.valR[2].toFixed(3)}</td>
+    <td>${d.testS[0].toFixed(3)}</td><td>${d.testS[1].toFixed(3)}</td><td>${d.testS[2].toFixed(3)}</td><td>${d.testS[3]}</td>
+    <td>${d.testR[0].toFixed(3)}</td><td>${d.testR[1].toFixed(3)}</td><td>${d.testR[2].toFixed(3)}</td>
+  </tr>`).join('');
+
+$$('.table-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tbl = document.getElementById(btn.dataset.target);
+    tbl.classList.toggle('show');
+    btn.textContent = tbl.classList.contains('show') ? 'Hide full P/R/F1 table' : 'Show full P/R/F1 table (strict + relaxed, val + test)';
+  });
+});
+</script>
+</body>
+</html>

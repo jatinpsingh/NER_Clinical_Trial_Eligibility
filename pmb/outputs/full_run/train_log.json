@@ -1,0 +1,16 @@
+{
+  "smoke_test": false,
+  "num_train_examples": 10006,
+  "num_val_examples": 1240,
+  "num_epochs": 10,
+  "elapsed_seconds": 777.4668531417847,
+  "train_metrics": {
+    "train_runtime": 777.1007,
+    "train_samples_per_second": 128.761,
+    "train_steps_per_second": 16.098,
+    "total_flos": 2289772084252224.0,
+    "train_loss": 0.3412549836839513,
+    "epoch": 10.0
+  },
+  "final_checkpoint": "/home/palaktanwar/pmb/outputs/full_run/final"
+}

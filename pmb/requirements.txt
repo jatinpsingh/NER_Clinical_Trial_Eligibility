@@ -1,0 +1,5 @@
+torch
+transformers
+accelerate>=1.1.0
+requests
+chia-pipeline @ git+https://github.com/jatinpsingh/NER_Clinical_Trial_Eligibility.git#subdirectory=pipeline
