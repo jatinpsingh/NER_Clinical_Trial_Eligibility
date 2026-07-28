@@ -1,0 +1,48 @@
+TEST HEADLINE (n=250)
+
+arm                     cov     sP     sR    sF1 |     rP     rR    rF1
+------------------------------------------------------------------------
+gpt-sol_m100       100/1163  0.566  0.700  0.626 |  0.675  0.834  0.746
+
+ERROR TYPES (n=250): exact / boundary / label / spurious
+
+arm                exact   bound   label    spur
+------------------------------------------------
+gpt-sol_m100      56.1%   6.6%   4.2%  25.0%
+
+ PER-TYPE strict F1 (n=250
+
+label            support gpt-sol_
+Person               152    0.700
+Condition           1121    0.743
+Drug                 292    0.854
+Observation          113    0.154
+Measurement          310    0.656
+Procedure            305    0.533
+Device                32    0.000
+Visit                 18    0.000
+Temporal             320    0.652
+Value                384    0.694
+Negation              68    0.560
+Qualifier            351    0.267
+Multiplier            59    0.625
+Reference_point        7    0.000
+Mood                  43    0.364
+
+ LABEL CONFUSIONS - gpt-sol_m100 (gold -> predicted)
+  Qualifier        -> Temporal         3
+  Measurement      -> Condition        2
+  Condition        -> Observation      2
+  Qualifier        -> Observation      1
+  Observation      -> Procedure        1
+  Negation         -> Qualifier        1
+  Temporal         -> Qualifier        1
+  Observation      -> Mood             1
+  Measurement      -> Observation      1
+  Value            -> Qualifier        1
+  Procedure        -> Reference_point  1
+  Condition        -> Procedure        1
+
+ gpt-sol_m100: inclusion vs. exclusion (n=250)
+  inclusion  (  41 sents): P 0.543 R 0.671 F1 0.601
+  exclusion  (  59 sents): P 0.582 R 0.719 F1 0.643
