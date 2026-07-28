@@ -10,6 +10,10 @@ this project's proposal cites as its primary baseline), not this project's own
 proposal defaults, so results are directly comparable to that paper's reported
 numbers.
 
+**Trained checkpoint**: https://huggingface.co/ptanwar/pubmedbert-chia-ner
+(too large for git -- `outputs/full_run/final/` is gitignored; load it directly
+with `AutoModelForTokenClassification.from_pretrained("ptanwar/pubmedbert-chia-ner")`).
+
 ## Setup
 
 ```bash

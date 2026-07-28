@@ -339,6 +339,7 @@
     <tr><th>Training throughput</th><td>~17 steps/sec steady-state — 12,510 steps (10 epochs) completed in <b>777s (~13 min)</b></td></tr>
     <tr><th>Estimated cost</th><td>Well under $1 (exact on-demand rate: ~$0.71/hr for this instance type; total VM uptime including setup/eval/artifact transfer was well under an hour)</td></tr>
     <tr><th>Budget</th><td>$30 dedicated budget alert set on this project (50/90/100% thresholds); actual spend is a small fraction of that</td></tr>
+    <tr><th>Trained checkpoint</th><td><a href="https://huggingface.co/ptanwar/pubmedbert-chia-ner">huggingface.co/ptanwar/pubmedbert-chia-ner</a> (too large for git — hosted on HuggingFace Hub instead)</td></tr>
   </table>
   <p class="footnote">One real hiccup worth recording: the VM's pre-installed <code>torchaudio</code>
   (from the base Deep Learning VM image) was incompatible with the freshly pip-installed
