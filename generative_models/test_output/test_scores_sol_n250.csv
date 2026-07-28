@@ -1,0 +1,3 @@
+run,coverage,strict_P,strict_R,strict_F1,relax_P,relax_R,relax_F1
+sol_n250_m100_guide,100/1163,0.566,0.700,0.626,0.675,0.834,0.746
+sol_n250_m100_guide,100/100,0.566,0.700,0.626,0.675,0.834,0.746
