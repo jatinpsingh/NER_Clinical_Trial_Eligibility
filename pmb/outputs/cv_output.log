@@ -1,0 +1,45 @@
+Device: cuda
+=== Fold 0/9 ===
+  train=10006 val=1240 test=1163
+  training took 772.3s
+  val strict F1=0.6705  test strict F1=0.6573  test relaxed F1=0.7690
+=== Fold 1/9 ===
+  train=9998 val=1171 test=1240
+  training took 758.4s
+  val strict F1=0.6652  test strict F1=0.6600  test relaxed F1=0.7598
+=== Fold 2/9 ===
+  train=10095 val=1143 test=1171
+  training took 774.2s
+  val strict F1=0.6828  test strict F1=0.6662  test relaxed F1=0.7706
+=== Fold 3/9 ===
+  train=9845 val=1421 test=1143
+  training took 762.4s
+  val strict F1=0.6869  test strict F1=0.6823  test relaxed F1=0.7920
+=== Fold 4/9 ===
+  train=9704 val=1284 test=1421
+  training took 752.4s
+  val strict F1=0.6931  test strict F1=0.6921  test relaxed F1=0.7973
+=== Fold 5/9 ===
+  train=9950 val=1175 test=1284
+  training took 765.4s
+  val strict F1=0.6560  test strict F1=0.6766  test relaxed F1=0.7752
+=== Fold 6/9 ===
+  train=10025 val=1209 test=1175
+  training took 773.2s
+  val strict F1=0.6827  test strict F1=0.6532  test relaxed F1=0.7507
+=== Fold 7/9 ===
+  train=9907 val=1293 test=1209
+  training took 774.2s
+  val strict F1=0.6939  test strict F1=0.6643  test relaxed F1=0.7656
+=== Fold 8/9 ===
+  train=9806 val=1310 test=1293
+  training took 766.9s
+  val strict F1=0.6757  test strict F1=0.6812  test relaxed F1=0.7810
+=== Fold 9/9 ===
+  train=9936 val=1163 test=1310
+  training took 769.7s
+  val strict F1=0.6653  test strict F1=0.6602  test relaxed F1=0.7591
+=== Done: 10 folds in 7715.1s ===
+Test strict F1:  0.6693 +/- 0.0129
+Test relaxed F1: 0.7720 +/- 0.0147
+Saved full results to /home/palaktanwar/pmb/cv_results.json

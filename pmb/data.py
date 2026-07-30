@@ -3,6 +3,12 @@
 Downloads/caches train.jsonl / val.jsonl / test.jsonl / *_spans.jsonl /
 label_list.json from the team's shared repo (data/processed_baseline). Nothing
 here re-splits or regenerates that data -- it's consumed exactly as given.
+
+For 10-fold CV (see build_fold_split), the shared repo only materializes one
+fold (test=0, val=1); every other fold's split is reconstructed locally from
+fold_assignments.json, since train+val+test.jsonl union to the complete
+12,409-sentence corpus. This was verified byte-for-byte identical to the
+shipped fold-0 files before being trusted for the other 9 folds.
 """
 
 import json
@@ -35,6 +41,44 @@ def ensure_data(cache_dir: Path = config.DATA_CACHE_DIR) -> dict[str, Path]:
 
 def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _pool_records(paths: dict[str, Path], key_prefix: str) -> list[dict]:
+    """Union train/val/test (or their _spans variants) back into the full corpus."""
+    pool = []
+    for split in ("train", "val", "test"):
+        key = split if not key_prefix else f"{split}_{key_prefix}"
+        pool.extend(load_jsonl(paths[key]))
+    return pool
+
+
+def build_fold_split(
+    paths: dict[str, Path], fold: int, n_folds: int = config.N_FOLDS
+) -> tuple[dict[str, list[dict]], dict[str, list[dict]]]:
+    """Reconstruct one fold's train/val/test split (token+BIO and spans formats).
+
+    Follows fold_assignments.json's own rule: test=fold, val=(fold+1)%n_folds,
+    train=everything else. Returns (token_splits, span_splits), each a dict
+    with keys "train"/"val"/"test".
+    """
+    trial_fold = json.loads(paths["fold_assignments"].read_text(encoding="utf-8"))["trial_fold"]
+    val_fold = (fold + 1) % n_folds
+
+    def assign(pool: list[dict]) -> dict[str, list[dict]]:
+        out = {"train": [], "val": [], "test": []}
+        for record in pool:
+            f = trial_fold[record["nct_id"]]
+            if f == fold:
+                out["test"].append(record)
+            elif f == val_fold:
+                out["val"].append(record)
+            else:
+                out["train"].append(record)
+        return out
+
+    token_pool = _pool_records(paths, "")
+    span_pool = _pool_records(paths, "spans")
+    return assign(token_pool), assign(span_pool)
 
 
 def load_label_maps(label_list_path: Path) -> tuple[dict[str, int], dict[int, str], list[str]]:

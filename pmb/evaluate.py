@@ -61,14 +61,19 @@ def predict_batch(model, tokenizer, batch_tokens: list[list[str]], device, max_l
     return results
 
 
-def evaluate_split(split: str, model, tokenizer, device, paths: dict[str, Path], batch_size: int = 16) -> dict:
-    token_records = {r["id"]: r for r in load_jsonl(paths[split])}
-    span_records = load_jsonl(paths[f"{split}_spans"])
-
+def score_records(
+    token_records: list[dict], span_records: list[dict], model, tokenizer, device, batch_size: int = 16
+) -> tuple[dict, list[tuple[str, list]]]:
+    """Core scoring loop: given already-loaded token+span records (from a file
+    or, for CV, from build_fold_split), run inference and return strict+relaxed
+    scores plus the (id, predicted_entities) pairs, for reuse by both the
+    single-split CLI and the CV loop.
+    """
+    token_by_id = {r["id"]: r for r in token_records}
     ids, gold_sentences, pred_sentences = [], [], []
     for start in range(0, len(span_records), batch_size):
         batch = span_records[start : start + batch_size]
-        batch_tokens = [token_records[r["id"]]["tokens"] for r in batch]
+        batch_tokens = [token_by_id[r["id"]]["tokens"] for r in batch]
         batch_pred_tags = predict_batch(model, tokenizer, batch_tokens, device, config.MAX_SEQ_LENGTH)
 
         for span_record, tokens, pred_tags in zip(batch, batch_tokens, batch_pred_tags):
@@ -80,15 +85,24 @@ def evaluate_split(split: str, model, tokenizer, device, paths: dict[str, Path],
             gold_sentences.append(span_record["entities"])
             pred_sentences.append(bio_to_spans(retokenized, pred_tags))
 
-    predictions_path = config.OUTPUT_DIR / "full_run" / f"{split}_predictions.jsonl"
-    with predictions_path.open("w", encoding="utf-8") as f:
-        for sid, pred in zip(ids, pred_sentences):
-            f.write(json.dumps({"id": sid, "entities": pred}) + "\n")
-
-    return {
+    scores = {
         "strict": eval_utils.score_corpus(gold_sentences, pred_sentences),
         "relaxed": eval_utils.score_corpus_relaxed(gold_sentences, pred_sentences),
     }
+    return scores, list(zip(ids, pred_sentences))
+
+
+def evaluate_split(split: str, model, tokenizer, device, paths: dict[str, Path], batch_size: int = 16) -> dict:
+    token_records = load_jsonl(paths[split])
+    span_records = load_jsonl(paths[f"{split}_spans"])
+    scores, predictions = score_records(token_records, span_records, model, tokenizer, device, batch_size)
+
+    predictions_path = config.OUTPUT_DIR / "full_run" / f"{split}_predictions.jsonl"
+    with predictions_path.open("w", encoding="utf-8") as f:
+        for sid, pred in predictions:
+            f.write(json.dumps({"id": sid, "entities": pred}) + "\n")
+
+    return scores
 
 
 def main() -> None:
