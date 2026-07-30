@@ -71,6 +71,38 @@ Both paths were cross-checked against each other on this track's actual
 predictions and produced identical numbers to 9+ decimal places (see
 `outputs/full_run/official_report_{val,test}.json`).
 
+## 10-fold cross-validation
+
+`run_cv.py` reconstructs and runs all 10 of the shared repo's CV folds (Li et
+al. 2022's protocol), not just the one materialized fold above. Since
+`train.jsonl` + `val.jsonl` + `test.jsonl` union to the complete 12,409-sentence
+corpus, every other fold's split is rebuilt locally from
+`fold_assignments.json`'s trial-to-fold mapping (`data.build_fold_split`) --
+verified byte-for-byte identical to the shipped fold-0 files before being
+trusted for the other 9.
+
+```bash
+python run_cv.py                  # all 10 folds (~2 hours on a single GPU)
+python run_cv.py --folds 0 1 2    # a subset, e.g. to resume or split across machines
+```
+
+Each fold trains fresh (same hyperparameters/procedure as `train.py`), scores
+against that fold's own held-out test set, and its checkpoint is deleted right
+after scoring -- only the small `cv_results.json` summary is kept, so disk
+usage stays flat across all 10 folds rather than accumulating ~4GB of
+checkpoints. Results (mean +/- std across folds, `cv_results.json`):
+
+| | Precision | Recall | F1 |
+|---|---|---|---|
+| Test, strict | 0.657 +/- 0.013 | 0.682 +/- 0.021 | **0.669 +/- 0.013** |
+| Test, relaxed | 0.758 +/- 0.014 | 0.787 +/- 0.024 | **0.772 +/- 0.015** |
+
+The 10-fold mean (0.669 strict) is higher than both the single-fold result
+above (0.656) and Li et al.'s published number (0.622) -- the original
+fold-0 test set happened to be on the harder end of the 10, not
+representative of the average. `outputs/cv_output.log` has the per-fold
+breakdown.
+
 ## Architecture notes
 
 - `data.py` -- downloads/caches the shared split, builds `label2id`/`id2label`
@@ -96,6 +128,8 @@ predictions and produced identical numbers to 9+ decimal places (see
 
 ## Known limitations
 
-- Only one of the shared repo's 10 CV folds is used (per the "do not
-  re-split" instruction) -- no cross-fold variance or Wilcoxon significance
-  testing like Li et al.'s original paper.
+- The full 10-fold distribution (`cv_results.json`) still can't be used for a
+  valid Wilcoxon test *against Li et al.'s* number specifically -- they only
+  published their mean, not their 10 raw per-fold scores. It *can* validly
+  compare this track's own fold-wise distribution against another track's
+  repeated-run numbers (e.g. the SLM/LLM tracks), if those exist.
