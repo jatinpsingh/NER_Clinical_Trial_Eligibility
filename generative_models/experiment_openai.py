@@ -25,10 +25,10 @@ from pathlib import Path
 from openai import AsyncOpenAI
 
 # Paths
-ROOT = Path(os.environ.get("CHIA_ROOT", "/content/NER_repo"))
-SUPERSET = ROOT / "slm" / "example_superset_seed42.json"
+ROOT = Path(os.environ.get("CHIA_ROOT", Path(__file__).resolve().parents[1]))
+GEN_DIR = ROOT / "generative_models"
+SUPERSET = GEN_DIR / "example_superset_seed42.json"
 DATA_DIR = ROOT / "data" / "processed_baseline"
-OUT_DIR = OUT_DIR = ROOT / "slm" / "outputs" / re.sub(r"[^A-Za-z0-9]+", "-", "gpt-5.6-sol")
 
 
 # Entity schema
@@ -280,8 +280,9 @@ async def run(args) -> Path:
     examples = load_examples(args.n_examples)
     rows = load_split(args.split, args.m_samples, args.seed, args.shuffle)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
     model_slug = re.sub(r"[^A-Za-z0-9]+", "-", args.model)
+    OUT_DIR = GEN_DIR / f"{args.split}_output" / model_slug
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     m_label = "full" if args.m_samples is None else str(args.m_samples)
     guide_tag = "" if not args.no_guidelines else "_noguide"
     out_path = OUT_DIR / (f"predictions_{model_slug}_{args.split}_n{args.n_examples}"

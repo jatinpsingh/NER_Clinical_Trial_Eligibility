@@ -1,0 +1,2 @@
+condition,coverage,strict_P,strict_R,strict_F1,relax_P,relax_R,relax_F1
+luna_n250_guide,1163/1163,0.531,0.648,0.584,0.649,0.792,0.714

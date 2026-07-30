@@ -19,18 +19,20 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/jatin/nlp/project")
+ROOT = Path(os.environ.get("CHIA_ROOT", Path(__file__).resolve().parents[1]))
 #ROOT = Path("/home/sjatinpal2/NER_Clinical_Trial_Eligibility")
 
 sys.path.insert(0, str(ROOT / "pipeline" / "src"))
 from chia_pipeline.eval_utils import score_corpus_both  # noqa: E402
 
-GOLD_PATH = ROOT / "data" / "processed_baseline" / "val_spans.jsonl"
-OUT_DIR = ROOT / "slm" / "outputs"
+SPLIT = os.environ.get("CHIA_SPLIT", "val")
+GOLD_PATH = ROOT / "data" / "processed_baseline" / f"{SPLIT}_spans.jsonl"
+OUT_DIR = ROOT / "generative_models" / f"{SPLIT}_output"
 
 
 ENTITY_TYPES = {

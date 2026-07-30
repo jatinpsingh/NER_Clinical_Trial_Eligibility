@@ -1,0 +1,52 @@
+TEST HEADLINE (n=250)
+
+arm                     cov     sP     sR    sF1 |     rP     rR    rF1
+------------------------------------------------------------------------
+gpt-luna          1163/1163  0.531  0.648  0.584 |  0.649  0.792  0.714
+gpt-luna_m100subset   100/1163  0.567  0.630  0.597 |  0.701  0.778  0.738
+gpt-sol_m100       100/1163  0.566  0.700  0.626 |  0.675  0.834  0.746
+
+ERROR TYPES (n=250): exact / boundary / label / spurious
+
+arm                exact   bound   label    spur
+------------------------------------------------
+gpt-luna          53.0%   9.2%   5.2%  26.5%
+gpt-luna_m100subset  56.7%  10.2%   6.8%  18.9%
+gpt-sol_m100      56.1%   6.6%   4.2%  25.0%
+
+ PER-TYPE strict F1 (n=250
+
+label            support gpt-luna gpt-luna gpt-sol_
+Person               152    0.655    0.762    0.700
+Condition           1121    0.724    0.726    0.743
+Drug                 292    0.708    0.818    0.854
+Observation          113    0.139    0.067    0.154
+Measurement          310    0.740    0.630    0.656
+Procedure            305    0.495    0.400    0.533
+Device                32    0.524    0.000    0.000
+Visit                 18    0.346    0.000    0.000
+Temporal             320    0.541    0.535    0.652
+Value                384    0.717    0.712    0.694
+Negation              68    0.433    0.583    0.560
+Qualifier            351    0.316    0.241    0.267
+Multiplier            59    0.378    0.333    0.625
+Reference_point        7    0.000    0.000    0.000
+Mood                  43    0.089    0.000    0.364
+
+ LABEL CONFUSIONS - gpt-sol_m100 (gold -> predicted)
+  Qualifier        -> Temporal         3
+  Measurement      -> Condition        2
+  Condition        -> Observation      2
+  Qualifier        -> Observation      1
+  Observation      -> Procedure        1
+  Negation         -> Qualifier        1
+  Temporal         -> Qualifier        1
+  Observation      -> Mood             1
+  Measurement      -> Observation      1
+  Value            -> Qualifier        1
+  Procedure        -> Reference_point  1
+  Condition        -> Procedure        1
+
+ gpt-sol_m100: inclusion vs. exclusion (n=250)
+  inclusion  (  41 sents): P 0.543 R 0.671 F1 0.601
+  exclusion  (  59 sents): P 0.582 R 0.719 F1 0.643

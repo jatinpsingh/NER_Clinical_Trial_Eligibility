@@ -1,0 +1,48 @@
+TEST HEADLINE (n=250)
+
+arm                     cov     sP     sR    sF1 |     rP     rR    rF1
+------------------------------------------------------------------------
+gpt-luna          1163/1163  0.531  0.648  0.584 |  0.649  0.792  0.714
+
+ERROR TYPES (n=250): exact / boundary / label / spurious
+
+arm                exact   bound   label    spur
+------------------------------------------------
+gpt-luna          53.0%   9.2%   5.2%  26.5%
+
+ PER-TYPE strict F1 (n=250
+
+label            support gpt-luna
+Person               152    0.655
+Condition           1121    0.724
+Drug                 292    0.708
+Observation          113    0.139
+Measurement          310    0.740
+Procedure            305    0.495
+Device                32    0.524
+Visit                 18    0.346
+Temporal             320    0.541
+Value                384    0.717
+Negation              68    0.433
+Qualifier            351    0.316
+Multiplier            59    0.378
+Reference_point        7    0.000
+Mood                  43    0.089
+
+ LABEL CONFUSIONS - gpt-luna (gold -> predicted)
+  Observation      -> Condition        19
+  Condition        -> Observation      15
+  Multiplier       -> Value            15
+  Procedure        -> Drug             11
+  Condition        -> Qualifier        10
+  Measurement      -> Procedure        9
+  Condition        -> Procedure        8
+  Drug             -> Procedure        7
+  Measurement      -> Condition        7
+  Qualifier        -> Procedure        7
+  Observation      -> Qualifier        6
+  Procedure        -> Condition        6
+
+ gpt-luna: inclusion vs. exclusion (n=250)
+  inclusion  ( 444 sents): P 0.514 R 0.628 F1 0.565
+  exclusion  ( 719 sents): P 0.541 R 0.660 F1 0.595
